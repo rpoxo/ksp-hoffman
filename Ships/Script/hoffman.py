@@ -42,6 +42,19 @@ class Orbit:
         self.inclination = inclination
         self.longtitude_AN = longtitude_AN
         self.longtitude_PE = longtitude_PE
+        self.body = None # focal if any
+
+    @property
+    def AP(self):
+        return self.semi_major_axis * (1 + self.eccentricty) - self.body.radius
+
+    @property
+    def PE(self):
+        return self.semi_major_axis * (1 - self.eccentricty) - self.body.radius
+    
+    @property
+    def period(self):
+        return period
     
     # object position extrapolated from
     def position(self, epoch, mean_anomaly):
@@ -49,12 +62,26 @@ class Orbit:
     
     # returning altitude of craft at known time
     def altitude(self, T):
-        return altitude
+        if T > self.period:
+            T = T % self.period
+            return self.altitude(T)
+        
+        return self.altitude(T)
 
-class Vessel(object):
-    def __init__(self, orbit):
-        self.parts = []
+class Orbitable(object):
+    def __init__(self, name, orbit: Orbit):
+        self.name = name
         self.orbit = orbit
+
+class Body(Orbitable):
+    def __init__(self, name, radius, orbit: Orbit):
+        Orbitable.__init__(self, name, orbit)
+        self.radius = radius
+
+class Vessel(Orbitable):
+    def __init__(self, name, orbit: Orbit):
+        Orbitable.__init__(self, name, orbit)
+        self.parts = []
     
     @property
     def engines(self):
@@ -76,11 +103,6 @@ class Vessel(object):
     @property
     def mass(self):
         return sum([part.mass for part in self.parts])
-
-    def altitude(self, T):
-        if T > self.orbit.period:
-            T = T % self.orbit.period
-        return self.orbit.altitude(T)
 
 
 class Part(object):
@@ -139,19 +161,38 @@ def create_game_globals():
     
     return game
 
-def create_test_vessel(game: Game):
+def create_kerbin(body: Body) -> Body:
+    name = "Kerbin"
+    radius = 600000
+
+    # https://wiki.kerbalspaceprogram.com/wiki/Kerbin
+    # orbiting around Kerbol, ref point
+    eccentricty = 0.0
+    semi_major_axis = 13599840256 # 13 599 840 256 m 
+    inclination = 0.0
+    longtitude_AN = 0.0
+    longtitude_PE = 0.0
+    orbit = Orbit(eccentricty, semi_major_axis, inclination, longtitude_AN, longtitude_PE)
+    orbit.body = body
+
+    return Body(name, radius, orbit)
+
+def create_test_orbit(body: Body) -> Orbit:
     # creating test orbit
-    # pe=77040.3, ap=78244.3
     eccentricty = 0.00087202515127280354
-    semi_major_axis = 677611.24982132285
+    semi_major_axis = 677611.24982132285 # in m
     inclination = 0.86208014936579747
     longtitude_AN = 267.79842337347509
     longtitude_PE = 317.59481361307394
-    epoch = 1976148.6411155455
-    epoch = 1976188.4611155826
-    orbit = Orbit(eccentricty, semi_major_axis, inclination, longtitude_AN, longtitude_PE)
-    ship = Vessel(orbit)
 
+    orbit = Orbit(eccentricty, semi_major_axis, inclination, longtitude_AN, longtitude_PE)
+    orbit.body = body
+
+    return orbit
+
+def create_test_vessel(game: Game, orbit: Orbit):
+    ship = Vessel(name="smolsat", orbit=orbit)
+    
     # adding 1x xenon engine, should be done through config
     engine = Engine()
     engine.mass = 0.25 # in kg
@@ -264,12 +305,18 @@ def main():
     FORMAT = '%(levelno)s:%(funcName)s:%(message)s'
     logging.basicConfig(level=logging.INFO, format=FORMAT)
 
-    game_properties = create_game_globals()
-    vessel = create_test_vessel(game_properties)
+    game = create_game_globals()
 
-    T_mission = 0.0
-    T_transfer = get_transfer_time(vessel.altitude(T_mission), G_TARGET_ORBIT, G_INITIAL_BODY_MU)
-    dV1 = get_required_dv1(vessel.altitude(T_mission), G_TARGET_ORBIT, G_INITIAL_BODY_MU, G_INITIAL_BODY_RADIUS)
+    sun = Body("Kerbol", 261600000, None)
+    kerbin = create_kerbin(sun)
+
+    vessel = create_test_vessel(game, create_test_orbit(kerbin))
+    logging.info('vessel.orbit.AP: %f', vessel.orbit.AP)
+    logging.info('vessel.orbit.PE: %f', vessel.orbit.PE)
+
+    T_mission = 1976148.6411155455 # TODO: update at launch
+    T_transfer = get_transfer_time(vessel.orbit.altitude(T_mission), G_TARGET_ORBIT, G_INITIAL_BODY_MU)
+    dV1 = get_required_dv1(vessel.orbit.altitude(T_mission), G_TARGET_ORBIT, G_INITIAL_BODY_MU, G_INITIAL_BODY_RADIUS)
     
     # auxiliary for long burns
     T_burn = get_burn_time(dV1, vessel)
