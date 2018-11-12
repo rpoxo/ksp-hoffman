@@ -15,8 +15,6 @@ G_TARGET_BODY_SOI = 2429559 # 2 429 559.1 m
 G_TARGET_ORBIT = G_TARGET_BODY_ORBIT - G_TARGET_BODY_SOI # we aiming at SOI enter
 
 # INITIAL BODY PARAMS
-#mu = G*M # G is gravity constant, M is Kerbin mass
-G_INITIAL_BODY_MU = 3.5316000 * (10 ** 12) # m^3 / s^2
 G_INITIAL_BODY_RADIUS = 600 * (10 ** 3)
 
 # holding global shit
@@ -54,19 +52,22 @@ class Orbit:
     
     @property
     def period(self):
-        return period
+        return 2 * math.pi * math.sqrt((self.semi_major_axis ** 3) / (self.body.mu))
     
-    # object position extrapolated from
-    def position(self, epoch, mean_anomaly):
-        return position
+    @property
+    def mean_motion(self):
+        return (2 * math.pi) / self.period
+
+    # t time from pe?
+    def mean_anomaly(self, t):
+        return NotImplementedError
+
+    def eccentric_anomaly(self, t):
+        return NotImplementedError
     
     # returning altitude of craft at known time
-    def altitude(self, T):
-        if T > self.period:
-            T = T % self.period
-            return self.altitude(T)
-        
-        return self.altitude(T)
+    def altitude(self, t):
+        return NotImplementedError
 
 class Orbitable(object):
     def __init__(self, name, orbit: Orbit):
@@ -74,9 +75,10 @@ class Orbitable(object):
         self.orbit = orbit
 
 class Body(Orbitable):
-    def __init__(self, name, radius, orbit: Orbit):
+    def __init__(self, name, radius, orbit: Orbit, mu):
         Orbitable.__init__(self, name, orbit)
         self.radius = radius
+        self.mu = mu
 
 class Vessel(Orbitable):
     def __init__(self, name, orbit: Orbit):
@@ -161,9 +163,18 @@ def create_game_globals():
     
     return game
 
+def create_sun() -> Body:
+    name = "Kerbol"
+    radius = 261600000
+    mu = 1.1723328 * (10 ** 18) # m^3 / s^2
+
+    return Body(name, radius, None, mu)
+
 def create_kerbin(body: Body) -> Body:
     name = "Kerbin"
     radius = 600000
+    #mu = G*M # G is gravity constant, M is Kerbin mass
+    mu = 3.5316000 * (10 ** 12) # m^3 / s^2
 
     # https://wiki.kerbalspaceprogram.com/wiki/Kerbin
     # orbiting around Kerbol, ref point
@@ -175,7 +186,7 @@ def create_kerbin(body: Body) -> Body:
     orbit = Orbit(eccentricty, semi_major_axis, inclination, longtitude_AN, longtitude_PE)
     orbit.body = body
 
-    return Body(name, radius, orbit)
+    return Body(name, radius, orbit, mu)
 
 def create_test_orbit(body: Body) -> Orbit:
     # creating test orbit
@@ -187,6 +198,7 @@ def create_test_orbit(body: Body) -> Orbit:
 
     orbit = Orbit(eccentricty, semi_major_axis, inclination, longtitude_AN, longtitude_PE)
     orbit.body = body
+    # NOTE: ksp saves mean_anomaly in file while we computate it from formula
 
     return orbit
 
@@ -226,7 +238,7 @@ def get_transfer_time(r1, r2, mu):
     logging.debug('r1: %f', r1)
     logging.debug('r2: %f', r2)
     logging.debug('mu: %f', mu)
-
+    
     Ttransfer = math.pi * math.sqrt(((r1 + r2) ** 3) / (8 * mu))
 
     logging.info('Transfer time = %s, %f', datetime.timedelta(seconds=Ttransfer), Ttransfer)
@@ -286,8 +298,7 @@ def get_nodes(initial_orbit, dVrequired, T_burn, T_transfer, max_node_angle):
     logging.debug('Time transfer: %f', T_transfer)
     logging.debug('Max burn angle diff from prograde: %f', max_node_angle)
 
-
-    return some_nodes
+    return nodes
 
 # TODO: calc phase angle
 # TODO2: take into account inter\introplanetary transfers
@@ -298,25 +309,25 @@ def get_phase_angle():
 def get_ejection_engle():
   	pass
 
-def get_gravity(altitude):
-    return G_INITIAL_BODY_MU / (G_INITIAL_BODY_RADIUS + altitude)**2
-
 def main():
     FORMAT = '%(levelno)s:%(funcName)s:%(message)s'
     logging.basicConfig(level=logging.INFO, format=FORMAT)
 
     game = create_game_globals()
 
-    sun = Body("Kerbol", 261600000, None)
+    sun = create_sun()
     kerbin = create_kerbin(sun)
 
     vessel = create_test_vessel(game, create_test_orbit(kerbin))
     logging.info('vessel.orbit.AP: %f', vessel.orbit.AP)
     logging.info('vessel.orbit.PE: %f', vessel.orbit.PE)
+    logging.info('vessel.orbit.period: %s', datetime.timedelta(seconds=vessel.orbit.period))
 
-    T_mission = 1976148.6411155455 # TODO: update at launch
-    T_transfer = get_transfer_time(vessel.orbit.altitude(T_mission), G_TARGET_ORBIT, G_INITIAL_BODY_MU)
-    dV1 = get_required_dv1(vessel.orbit.altitude(T_mission), G_TARGET_ORBIT, G_INITIAL_BODY_MU, G_INITIAL_BODY_RADIUS)
+    T_mission = 1989049.0211275599 # TODO: update at launch
+    logging.info('vessel.orbit.mean_anomaly: %f', vessel.orbit.mean_anomaly(T_mission))
+
+    T_transfer = get_transfer_time(vessel.orbit.altitude(T_mission), G_TARGET_ORBIT, kerbin.mu)
+    dV1 = get_required_dv1(vessel.orbit.altitude(T_mission), G_TARGET_ORBIT, kerbin.mu, kerbin.radius)
     
     # auxiliary for long burns
     T_burn = get_burn_time(dV1, vessel)
