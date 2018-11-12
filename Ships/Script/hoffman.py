@@ -35,12 +35,21 @@ class Resource(object):
 # just use same format as in ksp savefiles
 # https://wiki.kerbalspaceprogram.com/wiki/Orbit#Orbits_in_the_save_file
 class Orbit:
-    def __init__(self, semi_major, semi_minor, eccentricty):
+    def __init__(self, eccentricty, semi_major_axis, inclination, longtitude_AN, longtitude_PE):
+        # orbit definition
         self.eccentricty = eccentricty
+        self.semi_major_axis = semi_major_axis
+        self.inclination = inclination
+        self.longtitude_AN = longtitude_AN
+        self.longtitude_PE = longtitude_PE
+    
+    # object position extrapolated from
+    def position(self, epoch, mean_anomaly):
+        return position
     
     # returning altitude of craft at known time
     def altitude(self, T):
-        return
+        return altitude
 
 class Vessel(object):
     def __init__(self, orbit):
@@ -133,7 +142,14 @@ def create_game_globals():
 def create_test_vessel(game: Game):
     # creating test orbit
     # pe=77040.3, ap=78244.3
-    orbit = Orbit(semi_major=677640.178, semi_minor=677639.911, eccentricty=0.00089)
+    eccentricty = 0.00087202515127280354
+    semi_major_axis = 677611.24982132285
+    inclination = 0.86208014936579747
+    longtitude_AN = 267.79842337347509
+    longtitude_PE = 317.59481361307394
+    epoch = 1976148.6411155455
+    epoch = 1976188.4611155826
+    orbit = Orbit(eccentricty, semi_major_axis, inclination, longtitude_AN, longtitude_PE)
     ship = Vessel(orbit)
 
     # adding 1x xenon engine, should be done through config
@@ -230,7 +246,7 @@ def get_nodes(initial_orbit, dVrequired, T_burn, T_transfer, max_node_angle):
     logging.debug('Max burn angle diff from prograde: %f', max_node_angle)
 
 
-    return 0.0
+    return some_nodes
 
 # TODO: calc phase angle
 # TODO2: take into account inter\introplanetary transfers
