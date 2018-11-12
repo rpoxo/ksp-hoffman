@@ -32,14 +32,13 @@ class Resource(object):
     def density(self):
         return self._density
 
+# just use same format as in ksp savefiles
+# https://wiki.kerbalspaceprogram.com/wiki/Orbit#Orbits_in_the_save_file
 class Orbit:
     def __init__(self, semi_major, semi_minor, eccentricty):
-        self.semi_major = semi_major
-        self.semi_minor = semi_minor
         self.eccentricty = eccentricty
-        # TODO: properties - eccentricty, AN\DN, inclination, etc...
     
-    @property
+    # returning altitude of craft at known time
     def altitude(self, T):
         return
 
