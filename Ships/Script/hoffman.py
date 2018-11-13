@@ -33,14 +33,14 @@ class Resource(object):
 # just use same format as in ksp savefiles
 # https://wiki.kerbalspaceprogram.com/wiki/Orbit#Orbits_in_the_save_file
 class Orbit:
-    def __init__(self, eccentricty, semi_major_axis, inclination, longtitude_AN, longtitude_PE):
+    def __init__(self, eccentricty, semi_major_axis, inclination, longtitude_AN, longtitude_PE, body):
         # orbit definition
         self.eccentricty = eccentricty
         self.semi_major_axis = semi_major_axis
         self.inclination = inclination
         self.longtitude_AN = longtitude_AN
         self.longtitude_PE = longtitude_PE
-        self.body = None # focal if any
+        self.body = body # focal if any
 
     @property
     def AP(self):
@@ -55,19 +55,38 @@ class Orbit:
         return 2 * math.pi * math.sqrt((self.semi_major_axis ** 3) / (self.body.mu))
     
     @property
+    def velocity(self, r):
+        return math.sqrt(self.body.mu * ( (2 / r) - (1 / self.semi_major_axis)))
+    
+    @property
     def mean_motion(self):
         return (2 * math.pi) / self.period
-
-    # t time from pe?
+    
     def mean_anomaly(self, t):
-        return NotImplementedError
+        if t > self.period: return ValueError('t({}) must be lower than orbital period({})'.format(t, self.period))
+        # (t - t0) -> t, we assuming that user already calculated time from PE
+        return math.sqrt(self.body.mu / (self.semi_major_axis ** 3)) * t
 
     def eccentric_anomaly(self, t):
-        return NotImplementedError
+        # caching some shit locally
+        M = self.mean_anomaly(t)
+
+        # guessed starting E = M as non-linear part of Kepler equation very small
+        E = M
+
+        counter = 0
+        logging.debug('E at start       = %f', E)
+        while True:
+            dE = (E - self.eccentricty * math.sin(E) - M) / (1 - self.eccentricty * math.cos(E))
+            E -= dE
+            logging.debug('E at %d iteration = %f', counter, E)
+            counter += 1
+            if abs(dE) < 1 ** -6: break # arbitrary value
+        return E
     
     # returning altitude of craft at known time
     def altitude(self, t):
-        return NotImplementedError
+        return self.semi_major_axis * (1 - self.eccentricty * math.cos(self.eccentric_anomaly(t))) - self.body.radius
 
 class Orbitable(object):
     def __init__(self, name, orbit: Orbit):
@@ -183,8 +202,7 @@ def create_kerbin(body: Body) -> Body:
     inclination = 0.0
     longtitude_AN = 0.0
     longtitude_PE = 0.0
-    orbit = Orbit(eccentricty, semi_major_axis, inclination, longtitude_AN, longtitude_PE)
-    orbit.body = body
+    orbit = Orbit(eccentricty, semi_major_axis, inclination, longtitude_AN, longtitude_PE, body)
 
     return Body(name, radius, orbit, mu)
 
@@ -196,9 +214,10 @@ def create_test_orbit(body: Body) -> Orbit:
     longtitude_AN = 267.79842337347509
     longtitude_PE = 317.59481361307394
 
-    orbit = Orbit(eccentricty, semi_major_axis, inclination, longtitude_AN, longtitude_PE)
-    orbit.body = body
-    # NOTE: ksp saves mean_anomaly in file while we computate it from formula
+    orbit = Orbit(eccentricty, semi_major_axis, inclination, longtitude_AN, longtitude_PE, body)
+    # NOTE: ksp saves mean_anomaly in file while we computate it from formula?
+    # MNA = -0.98394153589065536
+    # EPH = 2062973.4444266481 # keep note that kerbin day is 6 hours
 
     return orbit
 
@@ -323,11 +342,17 @@ def main():
     logging.info('vessel.orbit.PE: %f', vessel.orbit.PE)
     logging.info('vessel.orbit.period: %s', datetime.timedelta(seconds=vessel.orbit.period))
 
-    T_mission = 1989049.0211275599 # TODO: update at launch
-    logging.info('vessel.orbit.mean_anomaly: %f', vessel.orbit.mean_anomaly(T_mission))
+    # TODO: update at test
+    # 0.0 we're at PE
+    T_to_PE = 15 * 60 * 60 # arbitraty
+    T_from_PE = T_to_PE % vessel.orbit.period
+    logging.info('T_mission: %s', T_from_PE)
+    logging.info('vessel.orbit.mean_anomaly: %f', vessel.orbit.mean_anomaly(T_from_PE))
+    logging.info('vessel.orbit.eccentric_anomaly: %f', vessel.orbit.eccentric_anomaly(T_from_PE))
+    logging.info('vessel.orbit.altitude(%f): %f', T_from_PE, vessel.orbit.altitude(T_from_PE))
 
-    T_transfer = get_transfer_time(vessel.orbit.altitude(T_mission), G_TARGET_ORBIT, kerbin.mu)
-    dV1 = get_required_dv1(vessel.orbit.altitude(T_mission), G_TARGET_ORBIT, kerbin.mu, kerbin.radius)
+    T_transfer = get_transfer_time(vessel.orbit.altitude(T_from_PE), G_TARGET_ORBIT, kerbin.mu)
+    dV1 = get_required_dv1(vessel.orbit.altitude(T_from_PE), G_TARGET_ORBIT, kerbin.mu, kerbin.radius)
     
     # auxiliary for long burns
     T_burn = get_burn_time(dV1, vessel)
