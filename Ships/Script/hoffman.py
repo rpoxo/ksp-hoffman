@@ -329,7 +329,7 @@ def get_ejection_engle():
   	pass
 
 def main():
-    FORMAT = '%(levelno)s:%(funcName)s:%(message)s'
+    FORMAT = '%(levelname)s:%(funcName)s:%(message)s'
     logging.basicConfig(level=logging.INFO, format=FORMAT)
 
     game = create_game_globals()
@@ -343,8 +343,7 @@ def main():
     logging.info('vessel.orbit.period: %s', datetime.timedelta(seconds=vessel.orbit.period))
 
     # TODO: update at test
-    # 0.0 we're at PE
-    T_to_PE = 15 * 60 * 60 # arbitraty
+    T_to_PE = 90 # arbitraty
     T_from_PE = T_to_PE % vessel.orbit.period
     logging.info('T_mission: %s', T_from_PE)
     logging.info('vessel.orbit.mean_anomaly: %f', vessel.orbit.mean_anomaly(T_from_PE))
