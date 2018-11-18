@@ -124,6 +124,39 @@ class Vessel(Orbitable):
     @property
     def mass(self):
         return sum([part.mass for part in self.parts])
+    
+    # Determinate max burning time from orbit shape
+    # Idea for now:
+    # 1. Use PE alt as radius for auxiliary orbit
+    # 2. Compute x% of orbital period of this auxiliary orbit, X is arbitrary number
+    @property
+    def max_burn_time_at_PE(self):
+
+        raise NotImplementedError
+    
+    # Improved accuracy by using Thiolkovsky rocket equation:
+    # dv = isp * 9.81 * math.log(m0/m1)
+    # 
+    # Simplified formula works only for burns with insignificant mass change
+    # dV * mass / torque
+    def burn_time(self, dVrequired):
+        logging.debug('\nCalculating ejection burn time')
+        logging.debug('dV: %f', dVrequired)
+        logging.debug('Vessel mass: %f', self.mass)
+        logging.debug('Vessel torque: %f', self.torque)
+        logging.debug('Vessel Isp: %f', self.isp)
+
+        # NOTE: 9.82 on kerbin????
+        # TODO: make this shit unrelated to parent body
+        g0 = 9.82
+        mass_initial = self.mass
+        mass_final = mass_initial * math.exp( - dVrequired / (self.isp * g0))
+        mass_propellant = mass_initial - mass_final
+        mass_flow_rate = self.torque / (self.isp * g0)
+        T_burn = mass_propellant / mass_flow_rate
+
+        logging.debug('Burn time = %s, %f', datetime.timedelta(seconds=T_burn), T_burn)
+        return T_burn
 
 
 class Part(object):
@@ -170,7 +203,7 @@ class Engine(Part):
         # 9.80665 is a gravity constant at ground level of kerbin
         # actually 9.82 for ksp???
         #g0 = 9.80665
-        g0 = 9.81
+        g0 = 9.80665
         return sum([resource.density * consumption * g0 for resource, consumption in self.resources.items()])
 
 def create_game_globals():
@@ -260,7 +293,7 @@ def get_transfer_time(r1, r2, mu):
     
     Ttransfer = math.pi * math.sqrt(((r1 + r2) ** 3) / (8 * mu))
 
-    logging.info('Transfer time = %s, %f', datetime.timedelta(seconds=Ttransfer), Ttransfer)
+    logging.debug('Transfer time = %s, %f', datetime.timedelta(seconds=Ttransfer), Ttransfer)
     return Ttransfer
 
 # we're getting full time required for raising AP from initial orbit
@@ -277,47 +310,28 @@ def get_full_raise_time(rstart, # initial CIRCULAR orbit, or using PE
 
 def get_required_dv1(r1, r2, mu, r):
     logging.debug('\nCalculating dV1 m/s required for Hoffman transfer ejection burn')
-    logging.debug('r1: %f', r1)
-    logging.debug('r2: %f', r2)
-    logging.debug('mu: %f', mu)
-    logging.debug('r: %f', r)
+    logging.debug('r1 initial: %f', r1)
+    logging.debug('r2 target: %f', r2)
+    logging.debug('mu body: %f', mu)
+    logging.debug('r body: %f', r)
 
     dV1 = math.sqrt(mu / (r + r1)) * (math.sqrt((2 * r2) / ((r + r1) + r2)) - 1)
 
-    logging.info('dV1 = %f m/s', dV1)
+    logging.debug('dV1 = %f m/s', dV1)
     return dV1
 
-# Improved accuracy by using Thiolkovsky rocket equation:
-# dv = isp * 9.81 * math.log(m0/m1)
-# Simplified formula works only for short burns with insignificant mass change
-# dV * mass / torque
-def get_burn_time(dVrequired, vessel):
-    logging.debug('\nCalculating ejection burn time')
-    logging.debug('dV: %f', dVrequired)
-    logging.debug('Vessel mass: %f', vessel.mass)
-    logging.debug('Vessel torque: %f', vessel.torque)
-    logging.debug('Vessel Isp: %f', vessel.isp)
+def get_required_dv2(r1, r2, mu, r):
+    logging.debug('\nCalculating dV2 m/s required for Hoffman transfer circularization burn')
+    logging.debug('r1 initial: %f', r1)
+    logging.debug('r2 target: %f', r2)
+    logging.debug('mu body: %f', mu)
+    logging.debug('r body: %f', r)
 
-    # NOTE: 9.81 is a constant, not related to gravity?
-    g0 = 9.81
-    mass_initial = vessel.mass
-    mass_final = mass_initial * math.exp( - dVrequired / (vessel.isp * g0))
-    mass_propellant = mass_initial - mass_final
-    mass_flow_rate = vessel.torque / (vessel.isp * g0)
-    T_burn = mass_propellant / mass_flow_rate
+    # lost idea of minus, inverted direction on injection?
+    dV2 = -math.sqrt(mu / (r + r2)) * (1 - math.sqrt((2 * r2) / ((r + r1) + r2)))
 
-    logging.info('Burn time = %s, %f', datetime.timedelta(seconds=T_burn), T_burn)
-    return T_burn
-
-# returns T0+time before starting first burn
-def get_nodes(initial_orbit, dVrequired, T_burn, T_transfer, max_node_angle):
-    logging.debug('\nCalculating ejection nodes')
-    logging.debug('dV: %f', dVrequired)
-    logging.debug('Time burn: %f', T_burn)
-    logging.debug('Time transfer: %f', T_transfer)
-    logging.debug('Max burn angle diff from prograde: %f', max_node_angle)
-
-    return nodes
+    logging.debug('dV2 = %f m/s', dV2)
+    return dV2
 
 # TODO: calc phase angle
 # TODO2: take into account inter\introplanetary transfers
@@ -327,6 +341,19 @@ def get_phase_angle():
 # TODO: improve base accuracy from hoffman transfer
 def get_ejection_engle():
   	pass
+
+# NOTE: due to KSP day being 6h we cant use datetime.timedelta for large time spans
+# perhaps override?
+# TODO: add years
+def ksp_timedelta(timedelta: float) -> str:
+    day = 3600 * 6
+
+    days = timedelta // day
+    hours = (timedelta - (days * day)) // 3600
+    minutes = (timedelta - (days * day) - (hours * 3600)) // 60
+    seconds = timedelta - (days * day) - (hours * 3600) - (minutes * 60)
+
+    return '%dd%dh%dm%fs' % (days, hours, minutes, seconds)
 
 def main():
     FORMAT = '%(levelname)s:%(funcName)s:%(message)s'
@@ -338,27 +365,30 @@ def main():
     kerbin = create_kerbin(sun)
 
     vessel = create_test_vessel(game, create_test_orbit(kerbin))
-    logging.info('vessel.orbit.AP: %f', vessel.orbit.AP)
-    logging.info('vessel.orbit.PE: %f', vessel.orbit.PE)
-    logging.info('vessel.orbit.period: %s', datetime.timedelta(seconds=vessel.orbit.period))
+    logging.info('vessel.orbit.AP: %s', vessel.orbit.AP)
+    logging.info('vessel.orbit.PE: %s', vessel.orbit.PE)
+    logging.info('vessel.orbit.period: %s, %s', vessel.orbit.period, ksp_timedelta(vessel.orbit.period))
 
     # TODO: update at test
-    T_to_PE = 90 # arbitraty
-    T_from_PE = T_to_PE % vessel.orbit.period
-    logging.info('T_mission: %s', T_from_PE)
-    logging.info('vessel.orbit.mean_anomaly: %f', vessel.orbit.mean_anomaly(T_from_PE))
-    logging.info('vessel.orbit.eccentric_anomaly: %f', vessel.orbit.eccentric_anomaly(T_from_PE))
-    logging.info('vessel.orbit.altitude(%f): %f', T_from_PE, vessel.orbit.altitude(T_from_PE))
+    Tmission = 0.0
+    T_from_PE = Tmission % vessel.orbit.period
+    logging.info('time passed from PE: %s', T_from_PE)
 
     T_transfer = get_transfer_time(vessel.orbit.altitude(T_from_PE), G_TARGET_ORBIT, kerbin.mu)
-    dV1 = get_required_dv1(vessel.orbit.altitude(T_from_PE), G_TARGET_ORBIT, kerbin.mu, kerbin.radius)
-    
-    # auxiliary for long burns
-    T_burn = get_burn_time(dV1, vessel)
+    logging.info('transfer time: %s, %s', T_transfer, ksp_timedelta(T_transfer))
+    dV1required = get_required_dv1(vessel.orbit.altitude(T_from_PE), G_TARGET_ORBIT, kerbin.mu, kerbin.radius)
+    logging.info('dv1 required: %f m/s', dV1required)
 
-    # arbitrary
-    max_node_angle = 5.0
-    nodes = get_nodes(vessel.orbit, dV1, T_burn, T_transfer, max_node_angle)
+    # auxiliary computation for low TWR
+    T_burn = vessel.burn_time(dV1required)
+    logging.info('burn time: %s, %s', T_burn, ksp_timedelta(T_burn))
+
+    dV2required = get_required_dv2(vessel.orbit.altitude(T_from_PE), G_TARGET_ORBIT, kerbin.mu, kerbin.radius)
+    logging.info('dv2 required: %f m/s', dV2required)
+    T_burn2 = vessel.burn_time(dV2required)
+    logging.info('burn time: %s, %s', T_burn2, ksp_timedelta(T_burn2))
+
+    logging.info('vessel.max_burn_time_at_PE: %s', vessel.max_burn_time_at_PE)
 
 
 if __name__ == "__main__":
