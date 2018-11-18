@@ -287,9 +287,9 @@ def create_test_vessel(game: Game, orbit: Orbit):
 # Kepler 3rd law
 def get_transfer_time(r1, r2, mu):
     logging.debug('\nCalculating transfer time for semi-major axis from r1 to r2 orbit')
-    logging.debug('r1: %f', r1)
-    logging.debug('r2: %f', r2)
-    logging.debug('mu: %f', mu)
+    logging.debug('r1 initial: %f', r1)
+    logging.debug('r2 target: %f', r2)
+    logging.debug('mu body: %f', mu)
     
     Ttransfer = math.pi * math.sqrt(((r1 + r2) ** 3) / (8 * mu))
 
@@ -327,11 +327,10 @@ def get_required_dv2(r1, r2, mu, r):
     logging.debug('mu body: %f', mu)
     logging.debug('r body: %f', r)
 
-    # lost idea of minus, inverted direction on injection?
-    dV2 = -math.sqrt(mu / (r + r2)) * (1 - math.sqrt((2 * r2) / ((r + r1) + r2)))
+    dV2 = math.sqrt(mu / r2) * (1 - math.sqrt((2 * (r + r1)) / ((r + r1) + r2)))
 
     logging.debug('dV2 = %f m/s', dV2)
-    return dV2
+    return abs(dV2)
 
 # TODO: calc phase angle
 # TODO2: take into account inter\introplanetary transfers
@@ -374,6 +373,7 @@ def main():
     T_from_PE = Tmission % vessel.orbit.period
     logging.info('time passed from PE: %s', T_from_PE)
 
+    logging.info('TARGET_ORBIT: %f', G_TARGET_ORBIT)
     T_transfer = get_transfer_time(vessel.orbit.altitude(T_from_PE), G_TARGET_ORBIT, kerbin.mu)
     logging.info('transfer time: %s, %s', T_transfer, ksp_timedelta(T_transfer))
     dV1required = get_required_dv1(vessel.orbit.altitude(T_from_PE), G_TARGET_ORBIT, kerbin.mu, kerbin.radius)
