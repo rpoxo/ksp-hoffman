@@ -3,8 +3,9 @@ Python script for proofing things, ``.ks`` is ingame kOS scripts.
 
 Final goal is to send relay to Duna. 
 Currently we trying to get on Mun first.
-![Current ingame calculated node](https://i.imgur.com/xrqiYhT.png)
- * dV for ejection burn - need to port ingame updated version
+![Current ingame dV1 + dV2](https://i.imgur.com/1eXJkRG.png)
+ 
+TODO:
  * Ejection angle - tested ingame only
  * Phase angle - tested ingame only
  * Departure time - only for instant burns

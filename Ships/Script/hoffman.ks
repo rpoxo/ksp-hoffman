@@ -15,28 +15,34 @@ function hoffman1 {
     PRINT "Current speed: " + mySpeed + "m/s".
 
     PRINT myBody:NAME + " radius: " + myBody:RADIUS.
-    SET dVprograde to hoffman1_get_dv1(myAlt, targetAlt, myBody:MU, myBody:RADIUS).
-    PRINT "dV to prograde: " + dVprograde + "m/s".
-    PRINT "Ejection speed: " + (mySpeed + dVprograde) + "m/s".
+    SET dV1 to hoffman1_get_dv1(myAlt, targetAlt, myBody:MU, myBody:RADIUS).
+    PRINT "dV1: " + dV1 + "m/s".
+    PRINT "Ejection speed: " + (mySpeed + dV1) + "m/s".
 
-    SET transferTime to hoffman1_get_transfer_time(myAlt, targetAlt, myBody:MU).
+    SET transferTime to hoffman1_get_transfer_time(myAlt, targetAlt, myBody:MU, myBody:RADIUS).
     PRINT "Transfer time: " + transferTime. 
 
+    // TODO: REDO ALL
     // delaytime_degrees = t_hoffmann/Tmun*360 #in deg
-    SET targetTransferOrbitAngle to transferTime/targetBody:ORBIT:PERIOD * 360.
-    PRINT "Target transfer angle : " + targetTransferOrbitAngle.
+    //SET targetTransferOrbitAngle to transferTime/targetBody:ORBIT:PERIOD * 360.
+    //PRINT "Target transfer angle : " + targetTransferOrbitAngle.
+    //SET currentPhaseAngle to get_phase_angle(SHIP:ORBIT, targetBody:ORBIT).
+    //PRINT "Current phase angle: " + currentPhaseAngle.
+    //SET ejectionAngle to get_ejection_angle(myAlt, dV1, myBody:MU).
+    //PRINT "Ejection angle: " + ejectionAngle.
+    //SET timeToEject to get_ejection_time(ship:ORBIT:PERIOD, ejectionAngle, currentPhaseAngle).
+    //PRINT "Ejection time: " +  timeToEject.
 
-    SET currentPhaseAngle to get_phase_angle(SHIP:ORBIT, targetBody:ORBIT).
-    PRINT "Current phase angle: " + currentPhaseAngle.
+    // debugging
+    SET timeToEject to 600.
+    add_node (TIME:SECONDS + timeToEject, 0, 0, dV1).
 
-    PRINT "Kerbin MU: " + myBody:MU.
-    SET ejectionAngle to get_ejection_angle(myAlt, dVprograde, myBody:MU).
-    PRINT "Ejection angle: " + ejectionAngle.
+    // INJECTION
+    SET dV2 to hoffman1_get_dv2(myAlt, targetAlt, myBody:MU, myBody:RADIUS).
+    PRINT "dV2: " + dV2 + "m/s".
+    SET timeToInject to TIME:SECONDS + timeToEject + transferTime.
+    add_node (timeToInject, 0, 0, -dV2).
 
-    SET timeToEject to get_ejection_time(ship:ORBIT:PERIOD, ejectionAngle, currentPhaseAngle).
-    PRINT "Ejection time: " +  timeToEject.
-
-    add_node (TIME:SECONDS + timeToEject, 0, 0, dVprograde).
 }
 
 // dV = math.sqrt(mu / (r + r1)) * (math.sqrt((2 * r2) / ((r + r1) + r2)) - 1)
@@ -66,10 +72,12 @@ function hoffman1_get_dv2 {
 // transfer time
 // t_hoffmann = math.pi*((R1+R2)**3/(8*mu))**(0.5) #in s #in s
 function hoffman1_get_transfer_time {
-    parameter r1.
-    parameter r2.
-    parameter mu.
+    parameter altitude. // initial altitude
+    parameter r2. // target orbit
+    parameter mu. // body mu
+    parameter r. // body radius
 
+    SET r1 to altitude + r.
     return constant:PI * SQRT(((r1 + r2) ^ 3) / (8 * mu)).
 }
 
