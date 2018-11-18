@@ -1,8 +1,6 @@
 clearscreen.
 
 function hoffman1 {
-    clean_nodes().
-
     SET targetBody TO BODY("Mun").
     SET targetAlt to targetBody:ALTITUDE - targetBody:SOIRADIUS.
     // SET myAlt TO ship:body:altitudeOf(positionAt(ship, time:seconds + time)). // for future alt
@@ -10,16 +8,16 @@ function hoffman1 {
     SET mySpeed TO ship:VELOCITY:ORBIT:MAG.
     SET myBody to BODY("Kerbin").
 
-    PRINT "Current alt: " + myAlt + "m".
-    PRINT "Target orbit: " + targetAlt + "m".
-    PRINT "Current speed: " + mySpeed + "m/s".
+    PRINT "Current alt: " + myAlt + " m".
+    PRINT "Target orbit: " + targetAlt + " m".
+    PRINT "Current speed: " + mySpeed + " m/s".
 
     PRINT myBody:NAME + " radius: " + myBody:RADIUS.
-    SET dV1 to hoffman1_get_dv1(myAlt, targetAlt, myBody:MU, myBody:RADIUS).
-    PRINT "dV1: " + dV1 + "m/s".
-    PRINT "Ejection speed: " + (mySpeed + dV1) + "m/s".
+    SET dV1 to hoffman1_get_dv1(myAlt + myBody:RADIUS, targetAlt, myBody:MU).
+    PRINT "dV1: " + dV1 + " m/s".
+    PRINT "Ejection speed: " + (mySpeed + dV1) + " m/s".
 
-    SET transferTime to hoffman1_get_transfer_time(myAlt, targetAlt, myBody:MU, myBody:RADIUS).
+    SET transferTime to hoffman1_get_transfer_time(myAlt + myBody:RADIUS, targetAlt, myBody:MU).
     PRINT "Transfer time: " + transferTime. 
 
     // TODO: REDO ALL
@@ -38,46 +36,40 @@ function hoffman1 {
     add_node (TIME:SECONDS + timeToEject, 0, 0, dV1).
 
     // INJECTION
-    SET dV2 to hoffman1_get_dv2(myAlt, targetAlt, myBody:MU, myBody:RADIUS).
-    PRINT "dV2: " + dV2 + "m/s".
+    SET dV2 to hoffman1_get_dv2(myAlt + myBody:RADIUS, targetAlt, myBody:MU).
+    PRINT "dV2: " + dV2 + " m/s".
     SET timeToInject to TIME:SECONDS + timeToEject + transferTime.
-    add_node (timeToInject, 0, 0, -dV2).
+    add_node (timeToInject, 0, 0, dV2).
 
 }
 
 // dV = math.sqrt(mu / (r + r1)) * (math.sqrt((2 * r2) / ((r + r1) + r2)) - 1)
 function hoffman1_get_dv1 {
-    parameter altitude. // initial altitude
-    parameter r2. // target
+    parameter r1. // initial orbit
+    parameter r2. // target  orbit
     parameter mu. // body mu
-    parameter r. // body radius
 
-    SET r1 to altitude + r.
     SET dV to SQRT(mu / r1) * (SQRT((2 * r2) / (r1 + r2)) - 1).
-    return dV.
+    return ABS(dV).
 }
 
 // dV = math.sqrt(mu / r2) * (1 - math.sqrt((2 * (r + r1)) / ((r + r1) + r2)))
 function hoffman1_get_dv2 {
-    parameter altitude. // initial altitude
-    parameter r2. // target
+    parameter r1. // initial orbit
+    parameter r2. // target orbit
     parameter mu. // body mu
-    parameter r. // body radius
 
-    SET r1 to altitude + r.
     SET dV to SQRT(mu / r2) * (SQRT((2 * r1) / (r1 + r2)) - 1).
-    return dV.
+    return ABS(dV).
 }
 
 // transfer time
 // t_hoffmann = math.pi*((R1+R2)**3/(8*mu))**(0.5) #in s #in s
 function hoffman1_get_transfer_time {
-    parameter altitude. // initial altitude
+    parameter r1. // initial orbit
     parameter r2. // target orbit
     parameter mu. // body mu
-    parameter r. // body radius
 
-    SET r1 to altitude + r.
     return constant:PI * SQRT(((r1 + r2) ^ 3) / (8 * mu)).
 }
 
@@ -135,15 +127,6 @@ function get_ejection_time {
     SET ejectDelay to (myPeriod * (currentPhaseAngle - ejectAngle) / 360 ).
     
     RETURN ejectDelay.
-}
-
-function clean_nodes {
-    if HASNODE {
-        print "Removing nodes...".
-        FOR Node in ALLNODES {
-            REMOVE NEXTNODE.
-        }
-    }
 }
 
 function add_node {

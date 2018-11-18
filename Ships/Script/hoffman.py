@@ -131,8 +131,23 @@ class Vessel(Orbitable):
     # 2. Compute x% of orbital period of this auxiliary orbit, X is arbitrary number
     @property
     def max_burn_time_at_PE(self):
+        eccentricty = 0.0 # impossible
+        semi_major_axis = self.orbit.PE + self.orbit.body.radius
+        inclination = self.orbit.inclination
+        longtitude_PE = self.orbit.longtitude_PE
+        longtitude_AN = self.orbit.longtitude_AN
+        body = self.orbit.body
 
-        raise NotImplementedError
+        aux_orbit = Orbit(eccentricty, semi_major_axis, inclination, longtitude_PE, longtitude_AN, body)
+
+        logging.debug('aux orbit AP: %f', aux_orbit.AP)
+        logging.debug('aux orbit PE: %f', aux_orbit.PE)
+        logging.debug('aux orbit period: %f, %s', aux_orbit.period, ksp_timedelta(aux_orbit.period))
+
+        limit = 5.0 * 0.01 # percents
+        burn_time = aux_orbit.period * limit
+
+        return burn_time
     
     # Improved accuracy by using Thiolkovsky rocket equation:
     # dv = isp * 9.81 * math.log(m0/m1)
@@ -318,7 +333,7 @@ def get_required_dv1(r1, r2, mu, r):
     dV1 = math.sqrt(mu / (r + r1)) * (math.sqrt((2 * r2) / ((r + r1) + r2)) - 1)
 
     logging.debug('dV1 = %f m/s', dV1)
-    return dV1
+    return abs(dV1)
 
 def get_required_dv2(r1, r2, mu, r):
     logging.debug('\nCalculating dV2 m/s required for Hoffman transfer circularization burn')
@@ -388,7 +403,7 @@ def main():
     T_burn2 = vessel.burn_time(dV2required)
     logging.info('burn time: %s, %s', T_burn2, ksp_timedelta(T_burn2))
 
-    logging.info('vessel.max_burn_time_at_PE: %s', vessel.max_burn_time_at_PE)
+    logging.info('vessel.max_burn_time_at_PE: %s, %s', vessel.max_burn_time_at_PE, datetime.timedelta(seconds=vessel.max_burn_time_at_PE))
 
 
 if __name__ == "__main__":
