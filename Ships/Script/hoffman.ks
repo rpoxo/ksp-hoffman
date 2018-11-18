@@ -39,15 +39,28 @@ function hoffman1 {
     add_node (TIME:SECONDS + timeToEject, 0, 0, dVprograde).
 }
 
-// dV1 = math.sqrt(mu / (r + r1)) * (math.sqrt((2 * r2) / ((r + r1) + r2)) - 1)
+// dV = math.sqrt(mu / (r + r1)) * (math.sqrt((2 * r2) / ((r + r1) + r2)) - 1)
 function hoffman1_get_dv1 {
-    parameter r1. // initial
+    parameter altitude. // initial altitude
     parameter r2. // target
     parameter mu. // body mu
     parameter r. // body radius
 
-    SET dV1 to SQRT(mu / (r + r1)) * (SQRT((2 * r2) / ((r + r1) + r2)) - 1).
-    return dV1.
+    SET r1 to altitude + r.
+    SET dV to SQRT(mu / r1) * (SQRT((2 * r2) / (r1 + r2)) - 1).
+    return dV.
+}
+
+// dV = math.sqrt(mu / r2) * (1 - math.sqrt((2 * (r + r1)) / ((r + r1) + r2)))
+function hoffman1_get_dv2 {
+    parameter altitude. // initial altitude
+    parameter r2. // target
+    parameter mu. // body mu
+    parameter r. // body radius
+
+    SET r1 to altitude + r.
+    SET dV to SQRT(mu / r2) * (SQRT((2 * r1) / (r1 + r2)) - 1).
+    return dV.
 }
 
 // transfer time
