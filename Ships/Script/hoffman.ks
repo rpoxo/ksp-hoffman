@@ -46,11 +46,6 @@ function hoffman1_get_dv1 {
     parameter mu. // body mu
     parameter r. // body radius
 
-    PRINT "r1: " + r1.
-    PRINT "r2: " + r2.
-    PRINT "mu: " + mu.
-    PRINT "r: " + r.
-
     SET dV1 to SQRT(mu / (r + r1)) * (SQRT((2 * r2) / ((r + r1) + r2)) - 1).
     return dV1.
 }
