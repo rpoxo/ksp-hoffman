@@ -144,7 +144,7 @@ class Vessel(Orbitable):
         logging.debug('aux orbit PE: %f', aux_orbit.PE)
         logging.debug('aux orbit period: %f, %s', aux_orbit.period, ksp_timedelta(aux_orbit.period))
 
-        limit = 5.0 * 0.01 # percents
+        limit = 5.0 * 0.01 # 5% percents
         burn_time = aux_orbit.period * limit
 
         return burn_time
@@ -404,6 +404,9 @@ def main():
     logging.info('burn time: %s, %s', T_burn2, ksp_timedelta(T_burn2))
 
     logging.info('vessel.max_burn_time_at_PE: %s, %s', vessel.max_burn_time_at_PE, datetime.timedelta(seconds=vessel.max_burn_time_at_PE))
+
+    N_burns = T_burn // vessel.max_burn_time_at_PE
+    logging.info('number of burns: %d', N_burns)
 
 
 if __name__ == "__main__":
